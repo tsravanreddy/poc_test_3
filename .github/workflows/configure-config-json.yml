@@ -12,6 +12,7 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
       - name: Extract values from issue body
         id: extract
         shell: pwsh
@@ -29,6 +30,7 @@ jobs:
           "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
           "instrument_model=$instrument_model" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
           "manufacturer=$manufacturer" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
       - name: Debug extracted values
         shell: pwsh
         run: |
@@ -36,6 +38,7 @@ jobs:
           Write-Host "Version: ${{ steps.extract.outputs.version }}"
           Write-Host "Instrument Model: ${{ steps.extract.outputs.instrument_model }}"
           Write-Host "Manufacturer: ${{ steps.extract.outputs.manufacturer }}"
+
       - name: Update config.json
         shell: pwsh
         run: |
@@ -46,25 +49,29 @@ jobs:
           $config.instrument_model = "${{ steps.extract.outputs.instrument_model }}"
           $config.manufacturer = "${{ steps.extract.outputs.manufacturer }}"
           $config | ConvertTo-Json -Depth 10 | Set-Content $configPath
-      - name: Clean up workflow file
+
+      - name: Clean up workflow and issue template files
         shell: pwsh
         run: |
-          Write-Host " Removing workflow file..."
+          Write-Host "Removing workflow and issue template files..."
           Remove-Item -Path ".github/workflows/configure-config-json.yml" -Force -ErrorAction SilentlyContinue
           Remove-Item -Path ".github/ISSUE_TEMPLATE/configure-config-json.yml" -Force -ErrorAction SilentlyContinue
-          Write-Host "Workflow file removed"
+          Write-Host "Files removed"
+
       - name: Commit and push changes
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "Configure config.json from issue and cleanup workflow"
-          file_pattern: "config.json .github/workflows/configure-config-json.yml"
+          commit_message: "Configure config.json from issue and cleanup workflow and issue template"
+          file_pattern: |
+            config.json
+            .github/workflows/configure-config-json.yml
+            .github/ISSUE_TEMPLATE/configure-config-json.yml
+
       - name: Add comment and close issue
         uses: actions/github-script@v7
         with:
           script: |
             const issue_number = context.payload.issue.number;
-            
-            // Add a success comment
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -79,12 +86,10 @@ jobs:
               
               Changes have been committed to the repository.
               
-               **Cleanup:** The workflow file has been automatically removed as it's no longer needed.
+               **Cleanup:** The workflow and issue template files have been automatically removed as they're no longer needed.
               
               This issue will now be closed automatically.`
             });
-            
-            // Close the issue
             await github.rest.issues.update({
               owner: context.repo.owner,
               repo: context.repo.repo,
