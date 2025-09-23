@@ -1,5 +1,6 @@
 {
-  "project_name": "{{project_name}}",
-  "author": "{{author_name}}",
-  "version": "1.0.0"
+  "driver_name": "",
+  "version": "",
+  "instrument_model": "",
+  "manufacturer": ""
 }
