@@ -51,6 +51,7 @@ jobs:
         run: |
           Write-Host " Removing workflow file..."
           Remove-Item -Path ".github/workflows/configure-config-json.yml" -Force -ErrorAction SilentlyContinue
+          Remove-Item -Path ".github/ISSUE_TEMPLATE/configure-config-json.yml" -Force -ErrorAction SilentlyContinue
           Write-Host "Workflow file removed"
       - name: Commit and push changes
         uses: stefanzweifel/git-auto-commit-action@v5
