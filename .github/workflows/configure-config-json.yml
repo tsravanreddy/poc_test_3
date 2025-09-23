@@ -1,42 +1,92 @@
 name: Configure config.json from Issue
-
 on:
   issues:
     types: [opened, edited]
-
+permissions:
+  contents: write
+  issues: write
 jobs:
   update-config:
     if: github.event.issue.title == 'Configure config.json'
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
       - name: Extract values from issue body
         id: extract
+        shell: pwsh
         run: |
-          body="${{ github.event.issue.body }}"
-          driver_name=$(echo "$body" | grep -i 'Driver Name' -A 1 | tail -n1 | xargs)
-          version=$(echo "$body" | grep -i 'Version' -A 1 | tail -n1 | xargs)
-          instrument_model=$(echo "$body" | grep -i 'Instrument Model' -A 1 | tail -n1 | xargs)
-          manufacturer=$(echo "$body" | grep -i 'Manufacturer' -A 1 | tail -n1 | xargs)
-          echo "driver_name=$driver_name" >> $GITHUB_OUTPUT
-          echo "version=$version" >> $GITHUB_OUTPUT
-          echo "instrument_model=$instrument_model" >> $GITHUB_OUTPUT
-          echo "manufacturer=$manufacturer" >> $GITHUB_OUTPUT
-
+          $body = "${{ github.event.issue.body }}"
+          $driver_name = ($body -split "### Driver Name")[1] -split "###" | Select-Object -First 1
+          $driver_name = $driver_name.Trim()
+          $version = ($body -split "### Version")[1] -split "###" | Select-Object -First 1
+          $version = $version.Trim()
+          $instrument_model = ($body -split "### Instrument Model")[1] -split "###" | Select-Object -First 1
+          $instrument_model = $instrument_model.Trim()
+          $manufacturer = ($body -split "### Manufacturer")[1] -split "###" | Select-Object -First 1
+          $manufacturer = $manufacturer.Trim()
+          "driver_name=$driver_name" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "instrument_model=$instrument_model" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "manufacturer=$manufacturer" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+      - name: Debug extracted values
+        shell: pwsh
+        run: |
+          Write-Host "Driver Name: ${{ steps.extract.outputs.driver_name }}"
+          Write-Host "Version: ${{ steps.extract.outputs.version }}"
+          Write-Host "Instrument Model: ${{ steps.extract.outputs.instrument_model }}"
+          Write-Host "Manufacturer: ${{ steps.extract.outputs.manufacturer }}"
       - name: Update config.json
+        shell: pwsh
         run: |
-          jq \
-            --arg driver_name "${{ steps.extract.outputs.driver_name }}" \
-            --arg version "${{ steps.extract.outputs.version }}" \
-            --arg instrument_model "${{ steps.extract.outputs.instrument_model }}" \
-            --arg manufacturer "${{ steps.extract.outputs.manufacturer }}" \
-            '.driver_name = $driver_name | .version = $version | .instrument_model = $instrument_model | .manufacturer = $manufacturer' \
-            config.json > config.tmp.json && mv config.tmp.json config.json
-
+          $configPath = "config.json"
+          $config = Get-Content $configPath | ConvertFrom-Json
+          $config.driver_name = "${{ steps.extract.outputs.driver_name }}"
+          $config.version = "${{ steps.extract.outputs.version }}"
+          $config.instrument_model = "${{ steps.extract.outputs.instrument_model }}"
+          $config.manufacturer = "${{ steps.extract.outputs.manufacturer }}"
+          $config | ConvertTo-Json -Depth 10 | Set-Content $configPath
+      - name: Clean up workflow file
+        shell: pwsh
+        run: |
+          Write-Host " Removing workflow file..."
+          Remove-Item -Path ".github/workflows/configure-config-json.yml" -Force -ErrorAction SilentlyContinue
+          Write-Host "Workflow file removed"
       - name: Commit and push changes
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "Configure config.json from issue"
-          file_pattern: config.json
+          commit_message: "Configure config.json from issue and cleanup workflow"
+          file_pattern: "config.json .github/workflows/configure-config-json.yml"
+      - name: Add comment and close issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue_number = context.payload.issue.number;
+            
+            // Add a success comment
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issue_number,
+              body: ` **Configuration Updated Successfully!**
+              
+              The config.json has been updated with:
+              - **Driver Name:** ${{ steps.extract.outputs.driver_name }}
+              - **Version:** ${{ steps.extract.outputs.version }}
+              - **Instrument Model:** ${{ steps.extract.outputs.instrument_model }}
+              - **Manufacturer:** ${{ steps.extract.outputs.manufacturer }}
+              
+              Changes have been committed to the repository.
+              
+               **Cleanup:** The workflow file has been automatically removed as it's no longer needed.
+              
+              This issue will now be closed automatically.`
+            });
+            
+            // Close the issue
+            await github.rest.issues.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issue_number,
+              state: 'closed'
+            });
