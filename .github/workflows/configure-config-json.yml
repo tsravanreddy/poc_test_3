@@ -1,0 +1,42 @@
+name: Configure config.json from Issue
+
+on:
+  issues:
+    types: [opened, edited]
+
+jobs:
+  update-config:
+    if: github.event.issue.title == 'Configure config.json'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Extract values from issue body
+        id: extract
+        run: |
+          body="${{ github.event.issue.body }}"
+          driver_name=$(echo "$body" | grep -i 'Driver Name' -A 1 | tail -n1 | xargs)
+          version=$(echo "$body" | grep -i 'Version' -A 1 | tail -n1 | xargs)
+          instrument_model=$(echo "$body" | grep -i 'Instrument Model' -A 1 | tail -n1 | xargs)
+          manufacturer=$(echo "$body" | grep -i 'Manufacturer' -A 1 | tail -n1 | xargs)
+          echo "driver_name=$driver_name" >> $GITHUB_OUTPUT
+          echo "version=$version" >> $GITHUB_OUTPUT
+          echo "instrument_model=$instrument_model" >> $GITHUB_OUTPUT
+          echo "manufacturer=$manufacturer" >> $GITHUB_OUTPUT
+
+      - name: Update config.json
+        run: |
+          jq \
+            --arg driver_name "${{ steps.extract.outputs.driver_name }}" \
+            --arg version "${{ steps.extract.outputs.version }}" \
+            --arg instrument_model "${{ steps.extract.outputs.instrument_model }}" \
+            --arg manufacturer "${{ steps.extract.outputs.manufacturer }}" \
+            '.driver_name = $driver_name | .version = $version | .instrument_model = $instrument_model | .manufacturer = $manufacturer' \
+            config.json > config.tmp.json && mv config.tmp.json config.json
+
+      - name: Commit and push changes
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "Configure config.json from issue"
+          file_pattern: config.json
