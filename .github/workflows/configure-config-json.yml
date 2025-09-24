@@ -50,33 +50,109 @@ jobs:
           $config.manufacturer = "${{ steps.extract.outputs.manufacturer }}"
           $config | ConvertTo-Json -Depth 10 | Set-Content $configPath
 
+      - name: Rename ConsoleApp1 folder and files
+        shell: pwsh
+        run: |
+          $driverName = "${{ steps.extract.outputs.driver_name }}"
+          $sanitizedDriverName = $driverName -replace '[^a-zA-Z0-9_]', '_'
+          
+          Write-Host "Renaming ConsoleApp1 folder and files to: $sanitizedDriverName"
+          
+          # Check if ConsoleApp1 folder exists
+          if (Test-Path "ConsoleApp1") {
+            Write-Host "Found ConsoleApp1 folder, proceeding with rename..."
+            
+            # Rename .sln file if it exists
+            if (Test-Path "ConsoleApp1/ConsoleApp1.sln") {
+              Write-Host "Renaming ConsoleApp1.sln to $sanitizedDriverName.sln"
+              Rename-Item "ConsoleApp1/ConsoleApp1.sln" "$sanitizedDriverName.sln"
+              
+              # Update content of .sln file to reference new project name
+              $slnContent = Get-Content "ConsoleApp1/$sanitizedDriverName.sln" -Raw
+              $slnContent = $slnContent -replace "ConsoleApp1", $sanitizedDriverName
+              Set-Content "ConsoleApp1/$sanitizedDriverName.sln" $slnContent
+            }
+            
+            # Rename .csproj file if it exists
+            if (Test-Path "ConsoleApp1/ConsoleApp1.csproj") {
+              Write-Host "Renaming ConsoleApp1.csproj to $sanitizedDriverName.csproj"
+              Rename-Item "ConsoleApp1/ConsoleApp1.csproj" "$sanitizedDriverName.csproj"
+            }
+            
+            # Update any other files that might reference ConsoleApp1
+            $filesToUpdate = Get-ChildItem "ConsoleApp1" -Recurse -File | Where-Object { $_.Extension -match '\.(cs|csproj|sln|json|xml)$' }
+            foreach ($file in $filesToUpdate) {
+              try {
+                $content = Get-Content $file.FullName -Raw -ErrorAction SilentlyContinue
+                if ($content -and $content.Contains("ConsoleApp1")) {
+                  Write-Host "Updating references in: $($file.Name)"
+                  $content = $content -replace "ConsoleApp1", $sanitizedDriverName
+                  Set-Content $file.FullName $content
+                }
+              }
+              catch {
+                Write-Host "Warning: Could not update file $($file.FullName): $($_.Exception.Message)"
+              }
+            }
+            
+            # Finally, rename the folder itself
+            Write-Host "Renaming ConsoleApp1 folder to $sanitizedDriverName"
+            Rename-Item "ConsoleApp1" $sanitizedDriverName
+            
+            Write-Host "Folder and files renamed successfully!"
+          } else {
+            Write-Host "ConsoleApp1 folder not found, skipping rename operation"
+          }
+
       - name: Clean up workflow and issue template files
         shell: pwsh
         run: |
           Write-Host "Removing workflow and issue template files..."
-          Remove-Item -Path ".github/workflows/configure-config-json.yml" -Force -ErrorAction SilentlyContinue
-          Remove-Item -Path ".github/ISSUE_TEMPLATE/configure-config-json.yml" -Force -ErrorAction SilentlyContinue
-          Write-Host "Files removed"
+          
+          # Remove the workflow file
+          if (Test-Path ".github/workflows/configure-config-json.yml") {
+            Remove-Item -Path ".github/workflows/configure-config-json.yml" -Force
+            Write-Host "Removed: .github/workflows/configure-config-json.yml"
+          }
+          
+          # Remove issue template files (handle both .yml and .ym extensions)
+          if (Test-Path ".github/ISSUE_TEMPLATE/configure-config-json.yml") {
+            Remove-Item -Path ".github/ISSUE_TEMPLATE/configure-config-json.yml" -Force
+            Write-Host "Removed: .github/ISSUE_TEMPLATE/configure-config-json.yml"
+          }
+          
+          if (Test-Path ".github/ISSUE_TEMPLATE/configure-config-json.ym") {
+            Remove-Item -Path ".github/ISSUE_TEMPLATE/configure-config-json.ym" -Force
+            Write-Host "Removed: .github/ISSUE_TEMPLATE/configure-config-json.ym"
+          }
+          
+          Write-Host "Cleanup completed"
 
       - name: Commit and push changes
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "Configure config.json from issue and cleanup workflow and issue template"
+          commit_message: "Configure config.json, rename project files, and cleanup workflow and issue template"
           file_pattern: |
             config.json
             .github/workflows/configure-config-json.yml
             .github/ISSUE_TEMPLATE/configure-config-json.yml
+            .github/ISSUE_TEMPLATE/configure-config-json.ym
+            ConsoleApp1/**
+            ${{ steps.extract.outputs.driver_name }}/**
 
       - name: Add comment and close issue
         uses: actions/github-script@v7
         with:
           script: |
             const issue_number = context.payload.issue.number;
+            const driverName = "${{ steps.extract.outputs.driver_name }}";
+            const sanitizedDriverName = driverName.replace(/[^a-zA-Z0-9_]/g, '_');
+            
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: issue_number,
-              body: ` **Configuration Updated Successfully!**
+              body: `🎉 **Configuration Updated Successfully!**
               
               The config.json has been updated with:
               - **Driver Name:** ${{ steps.extract.outputs.driver_name }}
@@ -84,9 +160,15 @@ jobs:
               - **Instrument Model:** ${{ steps.extract.outputs.instrument_model }}
               - **Manufacturer:** ${{ steps.extract.outputs.manufacturer }}
               
-              Changes have been committed to the repository.
+              📁 **Project Structure Updated:**
+              - ConsoleApp1 folder renamed to: \`${sanitizedDriverName}\`
+              - ConsoleApp1.sln renamed to: \`${sanitizedDriverName}.sln\`
+              - ConsoleApp1.csproj renamed to: \`${sanitizedDriverName}.csproj\`
+              - All internal references updated accordingly
               
-               **Cleanup:** The workflow and issue template files have been automatically removed as they're no longer needed.
+              ✅ Changes have been committed to the repository.
+              
+              🧹 **Cleanup:** The workflow and issue template files have been automatically removed as they're no longer needed.
               
               This issue will now be closed automatically.`
             });
