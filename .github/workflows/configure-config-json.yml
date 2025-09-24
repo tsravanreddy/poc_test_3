@@ -149,28 +149,7 @@ jobs:
             const sanitizedDriverName = driverName.replace(/[^a-zA-Z0-9_]/g, '_');
             
             await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: issue_number,
-              body: `🎉 **Configuration Updated Successfully!**
-              
-              The config.json has been updated with:
-              - **Driver Name:** ${{ steps.extract.outputs.driver_name }}
-              - **Version:** ${{ steps.extract.outputs.version }}
-              - **Instrument Model:** ${{ steps.extract.outputs.instrument_model }}
-              - **Manufacturer:** ${{ steps.extract.outputs.manufacturer }}
-              
-              📁 **Project Structure Updated:**
-              - ConsoleApp1 folder renamed to: \`${sanitizedDriverName}\`
-              - ConsoleApp1.sln renamed to: \`${sanitizedDriverName}.sln\`
-              - ConsoleApp1.csproj renamed to: \`${sanitizedDriverName}.csproj\`
-              - All internal references updated accordingly
-              
-              ✅ Changes have been committed to the repository.
-              
-              🧹 **Cleanup:** The workflow and issue template files have been automatically removed as they're no longer needed.
-              
-              This issue will now be closed automatically.`
+              updated  `
             });
             await github.rest.issues.update({
               owner: context.repo.owner,
