@@ -1,0 +1,31 @@
+name: Create Configure config.json Issue
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  create-issue:
+    runs-on: windows-latest
+    steps:
+      - name: Create Configure config.json Issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: "Configure config.json",
+              body: [
+                "Please fill out the following details to configure your `config.json` file:",
+                "",
+                "**Driver Name:**",
+                "**Version:**",
+                "**Instrument Model:**",
+                "**Manufacturer:**",
+                "",
+                "_This issue was automatically created. Please edit and complete the fields above._"
+              ].join('\n'),
+              labels: ["configuration"]
+            })
