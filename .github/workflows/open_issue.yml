@@ -12,6 +12,7 @@ jobs:
       - name: Create Configure config.json Issue
         uses: actions/github-script@v7
         with:
+          github-token: ${{ secrets.GH_PAT }}
           script: |
             github.rest.issues.create({
               owner: context.repo.owner,
