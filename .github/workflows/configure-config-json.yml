@@ -214,20 +214,6 @@ jobs:
             Write-Host " config.json not found"
           }
 
-      - name: Clean up workflow and issue template files
-        shell: pwsh
-        run: |
-          Write-Host " Removing workflow and issue template files..."
-          
-          if (Test-Path ".github/workflows/configure-config-json.yml") {
-            git rm ".github/workflows/configure-config-json.yml"
-            Write-Host " Removed workflow file with git rm"
-          }
-          
-          if (Test-Path ".github/ISSUE_TEMPLATE/configure-config-json.yml") {
-            git rm ".github/ISSUE_TEMPLATE/configure-config-json.yml"
-            Write-Host " Removed issue template file with git rm"
-          }
 
       - name: Show git status
         shell: pwsh
